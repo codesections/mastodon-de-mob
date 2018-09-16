@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <meta property="og:title" content="t5"> 
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="t5">
+    <meta name="twitter:image:src" content="https://www.codesections.com/codesections_logo.png"> 
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="www.codesections.com">
+    <meta property="og:site_name" content="CodeSections">
+    <meta property="article:section" content="Article Section">
+    <meta property="og:image" itemprop="image primaryImageOfPage" content="https://www.codesections.com/codesections_logo_large.png"><meta name="og:description" content="The Tool for Tabulating Thirty Top Tooters (t5) searches all of your posts to Mastodon and finds the 30 users whose posts you've favorated most often.">
+    <meta name="description" content="The Tool for Tabulating Thirty Top Tooters (t5) searches all of your posts to Mastodon and finds the 30 users whose posts you've favorated most often.">
+    <meta name="twitter:description" content="The Tool for Tabulating Thirty Top Tooters (t5) searches all of your posts to Mastodon and finds the 30 users whose posts you've favorated most often.">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+    <meta name="theme-color" content="#d9d9d9">
+    <link rel="canonical" href="https://t5.codesections.com">
+    <title>
+       t5
+    </title>
+    <style>
+/* The CSS and JavaScript for this page are both entirely inline because,
+ * even with that added content, the compressed page is under 14KB and thus
+ * fits in the initial TCP window (1 round trip).  Comments remain in for
+ * the same reason.
+ *
+ * The CSS follows the BEM style, which is a nice fit for a project of
+ * this size.  http://getbem.com/  The colors and general look/feel 
+ * are heavily modeled on the Mastodon default theme, since many visitors
+ * will likely come directly from there.
+ */
+
+/*
+ * Page-Global Styles
+ */
+.body__defaults {
+  margin: 20px auto;
+  max-width: 650px;
+  line-height: 1.6;
+  font-size: 18px;
+  color: #fff;
+  background-color: #444b5d;
+  padding: 0 10px;
+  font-family: -apple-system, /* Use system fonts to save page-weight */
+         BlinkMacSystemFont,
+         'Segoe UI',
+         Roboto,
+         'Helvetica Neue',
+         Arial, sans-serif
+}
+.header--main {
+  margin-top: 1em;
+  line-height: 1em;
+  margin-bottom: 0;
+}
+.header--secondary {
+  margin-top: 2em;
+}
+.link {
+  color: #2b90d9; /* blue that matches buttons from Mastodon */
+  text-decoration: none;
+}
+.link--dark {
+  color: #0071F0; /* Slightly darker blue for light backgrounds */
+}
+.tagline {
+  margin-top: 0;
+}
+.inline-code {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  word-break: break-all;
+}
+
+.button {
+  border: 10px none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-block;
+  font-weight: 500;
+  line-height: 36px;
+  padding: 0 16px;
+  text-align: center;
+  font-size: 1em;
+  margin-top: 1em;
+  font-size: 1.25em;
+}
+.button--good {
+  background-color: #2b90d9; /* Blue, matching Mastodon "Toot!" button */
+  float: right;
+  margin-right: 15%;
+}
+.button--error {
+  background-color: #c00;
+  float: left;
+  margin-left: 15%;
+}
+/*
+ * Styles for forms
+ */
+.form {
+  width: 50%;
+  width: fit-content;
+  margin: auto;
+  margin-top: 3em;
+  text-align: center;
+}
+.form--pick-toot,
+.login__pick-toot {
+  display: none;
+}
+.form__label {
+  font-size: 2em;
+}
+.form__input {
+  font-size: 1em;
+}
+.form__button {
+  background-color: #2b90d9; /* Blue, matching Mastodon "Toot!" button */
+  border: 10px none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-block;
+  font-weight: 500;
+  line-height: 36px;
+  padding: 0 16px;
+  text-align: center;
+  font-size: 1em;
+  margin-top: 1em;
+}
+
+/*
+ * Styles for the Results section (shown once loaded)
+ */
+.content__results {
+  display: none; /* Initially hidden, show by JavaScript */
+}
+.results--target-toot {
+  overflow: hidden;
+  border-spacing: 0;
+  margin: auto;
+  border-radius: 12px;
+  text-align: left;
+  padding: 6px 13px;
+  border-bottom: 1px solid #393f4f; /* grey, same as used in Mastodon*/
+  max-width: 63vw; /* to ensure table doesn't overflow on mobile */
+  background-color: #282c37; /* Dark grey; same as Mastodon timelines */
+}
+.results--target-toot a {
+  color: #2b90d9; /* blue that matches buttons from Mastodon */
+  text-decoration: none;
+}
+.results--target-toot .invisible {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  font-size: 0;
+  line-height: 0;
+}
+.results--target-toot .ellipsis:after{
+  content: "\2026";
+}
+.toot-header__img {
+  width: 48px;
+  height: 48px;
+  padding-right: 1em;
+  float: left;
+}
+
+.account-name {
+  color: #606984; /* Light grey; same as used in Mastodon */
+}
+
+/*
+ * Styles for the loading screen
+ */
+.content__loading {
+  display: none; /* initially hidden, revealed by JavaScript */
+  text-align: center;
+}
+.loading--done {
+  display: none;
+}
+.error--unknown {
+  display: none;
+}
+.error--toot-not-found {
+  display: none;
+}
+@-webkit-keyframes blink {
+  50% {
+    color: transparent;
+  }
+}
+@keyframes blink {
+  50% {
+    color: transparent;
+  }
+}
+.loader__dot {
+  -webkit-animation: 1s blink infinite;
+  animation: 2s blink infinite;
+}
+.loader__dot:nth-child(2) {
+  -webkit-animation-delay: 250ms;
+  animation-delay: 250ms;
+}
+.loader__dot:nth-child(3) {
+  -webkit-animation-delay: 500ms;
+  animation-delay: 500ms;
+}
+
+/* 
+ * Alert styles
+ */
+.alert {
+  padding: .5em;
+  border-radius: 6px;
+  margin-top: 1em;
+}
+
+.alert__warning {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.alert__error {
+  background-color: #c00;
+  display: none;
+}
+
+.header--alert {
+  display: block;
+  margin: auto;
+  width: -moz-fit-content;
+  width: fit-content;
+}
+
+.paragraph--alert {
+  margin: 1em;
+  line-height: 1.25em;
+}
+    </style>
+  <body lang="en" class="body__defaults">
+    <h1 class="header--main" id="add-an-instance-h1">
+      Mastodon De-Mob
+    </h1>
+    <p class="tagline">
+      A <a class="link" href="https://www.codesections.com">codesections</a> project |
+      <a class="link" href="https://github.com/codesections/t5">source code</a>
+    </p>
+    <noscript>
+      <div class="alert alert__warning">
+        <strong class="header--alert">JavaScript Required</strong>
+        <p class="paragraph--alert">Ok, yes, I know you probably have 
+        JavaScript disabled for good reasons—I also value my privacy and
+        don't like the bloat of the modern web.  But look, this app is
+        neither bloated nor spying on you.  If you don't believe me, check
+        out the <a class="link" href="https://github.com/codesections/mastodon-de-mob">source</a>. 
+        In fact, just read the source for this page—I didn't even minify 
+        anything or take out the comments.  You can see for yourself that
+        there aren't any trackers; just simple http requests to your mastodon
+        instance.  This is one to add to your whitelist.
+        </p>
+      </div>
+    </noscript>
+
+    <div class="content__login">
+      <p class="login__auth">
+        A tool for
+        <a class="link" href="https://joinmastodon.org">Mastodon</a>
+        users designed to help prevent harassment.  Using this tool, you can
+        block all the users who boosted or favorited a harassing toot.
+        This tool will simultaneously report the harassing toot to your 
+        instance moderators and send them the following message:
+      </p>
+      <blockquote class="login__auth">
+        This toot is harassment, and I have blocked all the users who 
+        boosted or favorited it using the Mastodon De-Mob tool.
+      </blockquote> 
+      <p class="login__auth">
+        To get started, enter your instance below.
+      </p>
+      <form class="form form--auth">
+        <label class="form__label" for="instanceInput">
+          Instance:
+        </label>
+        <br>
+        <input class="form__input input--auth" type="text" id="instanceInput" placeholder="Enter instance name" required="">
+        <br>
+        <button class="form__button"type="submit" id="submitButton">
+          Authorize
+        </button>
+        <div class="alert alert__error">
+          <strong>Error</strong>: Could not load instance.  Please check the name and try again.
+        </div>
+      </form>
+      <p class="login__pick-toot">
+        Now paste the URL of the toot.  This can be the URL from when you view 
+        the toot in your instance (e.g.,
+        <code class="inline-code">
+          https://fosstodon.org/web/statuses/100736935090837256</code>)
+        or the URL
+        from public page for the toot—the page you get by clicking on the 
+        timestamp for the toot on the user's public profile page (e.g., 
+        <code class="inline-code">
+          https://fosstodon.org/@codesections/100736935090837256</code>).
+      </p>
+      <form class="form form--pick-toot">
+        <label class="form__label" for="instanceInput">
+          Toot URL:
+        </label>
+        <br>
+        <input class="form__input input--pick-toot" type="text" id="instanceInput" placeholder="Enter toot URL" required="">
+        <br>
+        <button class="form__button"type="submit" id="submitButton">
+          Get Toot
+        </button>
+        <div class="alert alert__error">
+          <strong>Error</strong>: Could not load instance.  Please check the name and try again.
+        </div>
+      </form>
+
+    </div>
+    
+    <div class="content__loading">
+      <div class="loading--in-progress">
+        <h2 class="header--secondary">
+          Blocking <span class="js-number-of-blocked-accounts">a number of
+          accounts </span><span class="loader__dot">.</span><span class="loader__dot">.</span><span class="loader__dot">.</span>
+        </h2>
+        <p>
+          (this could take a minute or two; please do not close the page
+          while blocking is in progress.)
+        </p>
+      </div>
+      <div class="loading--done">
+        <h2 class="header--secondary">All accounts blocked!</h2>
+      </div>
+    </div>
+    
+      <div class="alert alert__error error--toot-not-found">
+        <strong>Error</strong>: Could not find toot.  Please check the URL and try again.
+      </div>
+
+    <div class="alert alert__error error--unknown">
+        <strong class="header--alert">Sever error</strong>
+        <p>
+          Something went wrong.  Sorry about that!
+        </p>
+    </div> 
+    
+    <div class="content__results">
+      <h2 class="header--secondary">
+        You are about to block everyone who favorited or boosted this toot:
+      </h2>
+      <div class="results--target-toot">
+      </div>
+      <button class="button button--error button--abort">Abort</button>
+      <button class="button button--good button--block-all">Block All</button>
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>
