@@ -32,6 +32,19 @@ Thus, this tool is not intended to facilitate that sort of behavior.  It makes
 a report to the users' moderators about each use, which I hope will limit the
 amount people use this tool for non-harassing purposes.
 
+## Privacy
+Mastodon De-Mob does send me any data.  No analytics, no tracking data, nothing.  The
+only data it stores is saved to local storage in your web browser.  The only data it
+sends out is sent to your instance and is the minimum amount of data necessary to
+identify the users to block, block those users, and send the report.
+
+Because Mastodon De-Mob uses OAuth for authentication, the app never sees your login
+information or password.
+
+## Alternatives 
+[Mastodon Blocker](https://github.com/kensanata/mastodon-blocker) is a Python CLI 
+application with similar functionality.
+
 ## Contributing
 If you notice any bugs or have any feature requests, please feel free to open an issue.
 
