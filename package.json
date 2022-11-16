@@ -1,11 +1,12 @@
 {
   "dependencies": {
+    "dompurify": "^2.4.1",
     "esbuild": "^0.15.14",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "scripts": {
-    "build": "esbuild main.jsx --bundle --outfile=main.js"
+    "build": "esbuild main.jsx --bundle --minify --outfile=main.js"
   },
   "volta": {
     "node": "16.18.1",

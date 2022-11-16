@@ -1,5 +1,6 @@
 import * as React from 'react';
-import * as Server from 'react-dom/server';
+import * as ReactDOM from 'react-dom/client';
+import * as DOMPurify from 'dompurify';
 
 const config = {
   appName: 'Mastodon De-Mob-v0.9.0',
@@ -149,24 +150,27 @@ const getTootContent = function getTootContentOfSuppliedToot(tootId) {
       const response = JSON.parse(xhr.responseText);
       global.tootId = tootId;
       global.accountId = response.account.id;
-      let tootContent = `
-      <div class="card--toot-header">
-        <img src="${response.account.avatar_static}" class="toot-header__img">
-        <strong>${response.account.display_name}</strong> 
-        <br>
-        @${response.account.acct}
-      </div>
-      ${response.spoiler_text}
-      ${response.content}`;
-      if (response.media_attachments) {
-        response.media_attachments.forEach((img) => {
-          tootContent += `<img src="${img.preview_url}">`;
-        });
-      }
+      let tootContent = <>
+        <div className="card--toot-header">
+          <img src={response.account.avatar_static} className="toot-header__img" />
+          <strong>{DOMPurify.sanitize(response.account.display_name)}</strong> 
+          <br />
+          @{response.account.acct}
+        </div>
+
+        <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(response.spoiler_text)}} />
+
+        <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(response.content)}} />
+
+        {(response.media_attachments || []).map((img) => {
+          <img src={img.preview_url} />
+        })}
+      </>;
 
       document.querySelector('.content__login').style.display = 'none';
       document.querySelector('.content__results').style.display = 'block';
-      document.querySelector('.results--target-toot').innerHTML = tootContent;
+      const root = ReactDOM.createRoot(document.querySelector('.results--target-toot'));
+      root.render(tootContent);
       getFavedBy(tootId);
       getBoostedBy(tootId);
     }
