@@ -1,3 +1,6 @@
+import * as React from 'react';
+import * as Server from 'react-dom/server';
+
 const config = {
   appName: 'Mastodon De-Mob-v0.9.0',
   appSite: window.location.origin + window.location.pathname,

@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "esbuild": "^0.15.14",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "scripts": {
+    "build": "esbuild main.jsx --bundle --outfile=main.js"
+  },
+  "volta": {
+    "node": "16.18.1"
+  }
+}
