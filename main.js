@@ -1,7 +1,7 @@
 const config = {
   appName: 'Mastodon De-Mob-v0.9.0',
-  appSite: 'https://mastodon-de-mob.codesections.com',
-  scope: 'read:accounts write:blocks write:reports',
+  appSite: window.location.origin + window.location.pathname,
+  scope: 'read:accounts write:blocks',
 };
 const global = {
   tootId: 'unset',
@@ -215,7 +215,7 @@ const getBoostedBy = function getAllTootsThatBoostedSuppliedToot(tootId) {
 
 const blockAll = function blockAllToots() {
   if (global.favoratedBy === 'unset' || global.boostedBy === 'unset') {
-    window.setInterval(blockAll, 200);
+    alert("Please wait until lists are loaded");
     return;
   }
 
@@ -228,8 +228,8 @@ const blockAll = function blockAllToots() {
   let numberOfBlockedAccounts = 0;
 
 
-  const xhr = new XMLHttpRequest();
   accountsToBlock.forEach((account) => {
+    const xhr = new XMLHttpRequest();
     xhr.open('POST',
       `${window.localStorage.getItem('baseUrl')}/api/v1/accounts/${account}/block`,
       true);
@@ -248,24 +248,6 @@ const blockAll = function blockAllToots() {
     };
     xhr.send();
   });
-
-  reportBlocking();
-};
-
-const reportBlocking = function reportBlockingToModerators() {
-  const xhr = new XMLHttpRequest();
-
-  xhr.open('POST',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/reports`,
-    true);
-
-  const params = new FormData();
-  params.append('account_id', global.accountId);
-  params.append('status_ids', `[${global.tootId}]`);
-  params.append('comment', 'This toot is harassment, and I have blocked all the users who boosted or favorited it using the Mastodon De-Mob tool.');
-  const accessToken = `Bearer ${window.localStorage.getItem(`${config.appName}token`)}`;
-  xhr.setRequestHeader('Authorization', accessToken);
-  xhr.send(params);
 };
 
 const displayLoading = function displayLoadingProgressPage(number) {
