@@ -8,6 +8,7 @@
     "build": "esbuild main.jsx --bundle --outfile=main.js"
   },
   "volta": {
-    "node": "16.18.1"
+    "node": "16.18.1",
+    "yarn": "1.22.19"
   }
 }
