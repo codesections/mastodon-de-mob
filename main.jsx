@@ -1,14 +1,15 @@
+import * as React from 'react';
+import * as ReactDOM from 'react-dom/client';
+import * as DOMPurify from 'dompurify';
+
 const config = {
   appName: 'Mastodon De-Mob-v0.9.0',
-  appSite: 'https://mastodon-de-mob.codesections.com',
-  scope: 'read:accounts write:blocks write:reports',
+  appSite: window.location.origin + window.location.pathname,
+  scope: 'read:accounts write:blocks read:search',
 };
-const global = {
-  tootId: 'unset',
-  accountId: 'unset',
-  favoratedBy: 'unset',
-  boostedBy: 'unset',
-};
+
+const global = window;
+global.toBlock = 'unset';
 
 const init = function init() {
   setupEventListeners();
@@ -36,13 +37,12 @@ const setupEventListeners = function setupEventListeners() {
     });
   document.querySelector('.form--pick-toot')
     .addEventListener('submit', (e) => {
-      let tootId = document.querySelector('.input--pick-toot').value;
-      if (/[^/]\/(\d+)/.test(tootId)) {
-        tootId = /[^/]\/(\d+)/.exec(tootId)[1];
-        getTootContent(tootId);
-      } else {
-        document.querySelector('.error--toot-not-found').style.display = 'block';
-      }
+      let tootUrl = document.querySelector('.input--pick-toot').value;
+      getTootContent(tootUrl).then((result) => {
+        if (!result) {
+          document.querySelector('.error--toot-not-found').style.display = 'block';
+        }
+      });
 
       e.preventDefault();
     });
@@ -131,107 +131,91 @@ const showTootPicker = function showTootPickerInsteadOfInstancePicker() {
   document.querySelector('.login__pick-toot').style.display = 'block';
 };
 
-const getTootContent = function getTootContentOfSuppliedToot(tootId) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/statuses/${tootId}`,
-    true);
+const getTootContent = async function getTootContentOfSuppliedToot(tootInput) {
+  const tootId = /[^/]\/(\d+)/.exec(tootInput)[1];
+  if (!tootId) {
+    return false;
+  }
 
-  xhr.onerror = showError;
-  xhr.onreadystatechange = () => {
-    if (
-      xhr.readyState === XMLHttpRequest.DONE
-      && xhr.status === 200
-    ) {
-      const response = JSON.parse(xhr.responseText);
-      global.tootId = tootId;
-      global.accountId = response.account.id;
-      let tootContent = `
-      <div class="card--toot-header">
-        <img src="${response.account.avatar_static}" class="toot-header__img">
-        <strong>${response.account.display_name}</strong> 
-        <br>
-        @${response.account.acct}
-      </div>
-      ${response.spoiler_text}
-      ${response.content}`;
-      if (response.media_attachments) {
-        response.media_attachments.forEach((img) => {
-          tootContent += `<img src="${img.preview_url}">`;
-        });
+  const tootUrl = new URL(tootInput);
+
+  const tootApiUrl = `${tootUrl.origin}/api/v1/statuses/${tootId}`;
+  const response = await fetch(tootApiUrl);
+  const jsonResponse = await response.json();
+
+  const canonicalTootUrl = new URL(jsonResponse.url);
+  const canonicalTootId = /[^/]\/(\d+)/.exec(jsonResponse.url)[1];
+  const canonicalTootApiUrl = canonicalTootId && `${canonicalTootUrl.origin}/api/v1/statuses/${canonicalTootId}`;
+
+  let tootContent = <>
+    <div className="card--toot-header">
+      <img src={jsonResponse.account.avatar_static} className="toot-header__img" />
+      <strong>{DOMPurify.sanitize(jsonResponse.account.display_name)}</strong> 
+      <br />
+      @{jsonResponse.account.acct}
+    </div>
+
+    <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(jsonResponse.spoiler_text)}} />
+
+    <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(jsonResponse.content)}} />
+
+    {(jsonResponse.media_attachments || []).map((img) => {
+      <img src={img.preview_url} />
+    })}
+  </>;
+
+  document.querySelector('.content__login').style.display = 'none';
+  document.querySelector('.content__results').style.display = 'block';
+  const root = ReactDOM.createRoot(document.querySelector('.results--target-toot'));
+  root.render(tootContent);
+
+  const toBlock = {};
+
+  await Promise.all([
+    fetchAccounts(toBlock, `${tootApiUrl}/reblogged_by`),
+    fetchAccounts(toBlock, `${tootApiUrl}/favourited_by`),
+    fetchAccounts(toBlock, `${canonicalTootApiUrl}/reblogged_by`),
+    fetchAccounts(toBlock, `${canonicalTootApiUrl}/favourited_by`)
+  ]);
+
+  global.toBlock = toBlock;
+
+  return true;
+};
+
+const fetchAccounts = async function (toBlock, url) {
+    try {
+      const response = await fetch(url);
+      const jsonResponse = await response.json();
+      for (const account of jsonResponse) {
+        if (!toBlock[account.acct]) {
+          const localSearchUrl = `${window.localStorage.getItem('baseUrl')}/api/v2/search?type=accounts&limit=1&q=${account.acct}`;
+          const response = await fetch(localSearchUrl, {headers: {
+            'Authorization': `Bearer ${window.localStorage.getItem(`${config.appName}token`)}`
+          }});
+          const jsonResponse = await response.json();
+          toBlock[account.acct] = jsonResponse.accounts[0];
+        }
       }
-
-      document.querySelector('.content__login').style.display = 'none';
-      document.querySelector('.content__results').style.display = 'block';
-      document.querySelector('.results--target-toot').innerHTML = tootContent;
-      getFavedBy(tootId);
-      getBoostedBy(tootId);
+    } catch (e) {
+      console.error(`failed to get accounts from ${url}: ${e}`);
     }
-  };
-  xhr.send();
-};
-
-const getFavedBy = function getAllTootsThatFavoratedSuppliedToot(tootId) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/statuses/${tootId}/favourited_by`,
-    true);
-
-  xhr.onerror = showError;
-  xhr.onreadystatechange = () => {
-    if (
-      xhr.readyState === XMLHttpRequest.DONE
-      && xhr.status === 200
-    ) {
-      global.favoratedBy = [];
-      JSON.parse(xhr.responseText).forEach((account) => {
-        global.favoratedBy.push(account.id);
-      });
-    }
-  };
-  xhr.send();
-};
-
-const getBoostedBy = function getAllTootsThatBoostedSuppliedToot(tootId) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/statuses/${tootId}/reblogged_by`,
-    true);
-
-  xhr.onerror = showError;
-  xhr.onreadystatechange = () => {
-    if (
-      xhr.readyState === XMLHttpRequest.DONE
-      && xhr.status === 200
-    ) {
-      global.boostedBy = [];
-      JSON.parse(xhr.responseText).forEach((account) => {
-        global.boostedBy.push(account.id);
-      });
-    }
-  };
-  xhr.send();
 };
 
 const blockAll = function blockAllToots() {
-  if (global.favoratedBy === 'unset' || global.boostedBy === 'unset') {
-    window.setInterval(blockAll, 200);
+  if (global.toBlock === 'unset') {
+    alert("Please wait until lists are loaded. check browser console for errors");
     return;
   }
 
-  const accountsToBlock = new Set();
-
-  global.boostedBy.forEach(id => accountsToBlock.add(id));
-  global.favoratedBy.forEach(id => accountsToBlock.add(id));
-
-  displayLoading(accountsToBlock.size);
+  const accountsToBlock = Object.keys(global.toBlock).length;
+  displayLoading(accountsToBlock);
   let numberOfBlockedAccounts = 0;
 
-
-  const xhr = new XMLHttpRequest();
-  accountsToBlock.forEach((account) => {
+  Object.values(global.toBlock).forEach((account) => {
+    const xhr = new XMLHttpRequest();
     xhr.open('POST',
-      `${window.localStorage.getItem('baseUrl')}/api/v1/accounts/${account}/block`,
+      `${window.localStorage.getItem('baseUrl')}/api/v1/accounts/${account.id}/block`,
       true);
     const accessToken = `Bearer ${window.localStorage.getItem(`${config.appName}token`)}`;
     xhr.setRequestHeader('Authorization', accessToken);
@@ -241,31 +225,13 @@ const blockAll = function blockAllToots() {
         && xhr.status === 200
       ) {
         numberOfBlockedAccounts++;
-        if (numberOfBlockedAccounts === accountsToBlock.size) {
-          displayLoadingDone(accountsToBlock.size);
+        if (numberOfBlockedAccounts === accountsToBlock) {
+          displayLoadingDone(accountsToBlock);
         }
       }
     };
     xhr.send();
   });
-
-  reportBlocking();
-};
-
-const reportBlocking = function reportBlockingToModerators() {
-  const xhr = new XMLHttpRequest();
-
-  xhr.open('POST',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/reports`,
-    true);
-
-  const params = new FormData();
-  params.append('account_id', global.accountId);
-  params.append('status_ids', `[${global.tootId}]`);
-  params.append('comment', 'This toot is harassment, and I have blocked all the users who boosted or favorited it using the Mastodon De-Mob tool.');
-  const accessToken = `Bearer ${window.localStorage.getItem(`${config.appName}token`)}`;
-  xhr.setRequestHeader('Authorization', accessToken);
-  xhr.send(params);
 };
 
 const displayLoading = function displayLoadingProgressPage(number) {
