@@ -5,14 +5,11 @@ import * as DOMPurify from 'dompurify';
 const config = {
   appName: 'Mastodon De-Mob-v0.9.0',
   appSite: window.location.origin + window.location.pathname,
-  scope: 'read:accounts write:blocks',
+  scope: 'read:accounts write:blocks read:search',
 };
-const global = {
-  tootId: 'unset',
-  accountId: 'unset',
-  favoratedBy: 'unset',
-  boostedBy: 'unset',
-};
+
+const global = window;
+global.toBlock = 'unset';
 
 const init = function init() {
   setupEventListeners();
@@ -40,13 +37,12 @@ const setupEventListeners = function setupEventListeners() {
     });
   document.querySelector('.form--pick-toot')
     .addEventListener('submit', (e) => {
-      let tootId = document.querySelector('.input--pick-toot').value;
-      if (/[^/]\/(\d+)/.test(tootId)) {
-        tootId = /[^/]\/(\d+)/.exec(tootId)[1];
-        getTootContent(tootId);
-      } else {
-        document.querySelector('.error--toot-not-found').style.display = 'block';
-      }
+      let tootUrl = document.querySelector('.input--pick-toot').value;
+      getTootContent(tootUrl).then((result) => {
+        if (!result) {
+          document.querySelector('.error--toot-not-found').style.display = 'block';
+        }
+      });
 
       e.preventDefault();
     });
@@ -135,110 +131,91 @@ const showTootPicker = function showTootPickerInsteadOfInstancePicker() {
   document.querySelector('.login__pick-toot').style.display = 'block';
 };
 
-const getTootContent = function getTootContentOfSuppliedToot(tootId) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/statuses/${tootId}`,
-    true);
+const getTootContent = async function getTootContentOfSuppliedToot(tootInput) {
+  const tootId = /[^/]\/(\d+)/.exec(tootInput)[1];
+  if (!tootId) {
+    return false;
+  }
 
-  xhr.onerror = showError;
-  xhr.onreadystatechange = () => {
-    if (
-      xhr.readyState === XMLHttpRequest.DONE
-      && xhr.status === 200
-    ) {
-      const response = JSON.parse(xhr.responseText);
-      global.tootId = tootId;
-      global.accountId = response.account.id;
-      let tootContent = <>
-        <div className="card--toot-header">
-          <img src={response.account.avatar_static} className="toot-header__img" />
-          <strong>{DOMPurify.sanitize(response.account.display_name)}</strong> 
-          <br />
-          @{response.account.acct}
-        </div>
+  const tootUrl = new URL(tootInput);
 
-        <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(response.spoiler_text)}} />
+  const tootApiUrl = `${tootUrl.origin}/api/v1/statuses/${tootId}`;
+  const response = await fetch(tootApiUrl);
+  const jsonResponse = await response.json();
 
-        <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(response.content)}} />
+  const canonicalTootUrl = new URL(jsonResponse.url);
+  const canonicalTootId = /[^/]\/(\d+)/.exec(jsonResponse.url)[1];
+  const canonicalTootApiUrl = canonicalTootId && `${canonicalTootUrl.origin}/api/v1/statuses/${canonicalTootId}`;
 
-        {(response.media_attachments || []).map((img) => {
-          <img src={img.preview_url} />
-        })}
-      </>;
+  let tootContent = <>
+    <div className="card--toot-header">
+      <img src={jsonResponse.account.avatar_static} className="toot-header__img" />
+      <strong>{DOMPurify.sanitize(jsonResponse.account.display_name)}</strong> 
+      <br />
+      @{jsonResponse.account.acct}
+    </div>
 
-      document.querySelector('.content__login').style.display = 'none';
-      document.querySelector('.content__results').style.display = 'block';
-      const root = ReactDOM.createRoot(document.querySelector('.results--target-toot'));
-      root.render(tootContent);
-      getFavedBy(tootId);
-      getBoostedBy(tootId);
-    }
-  };
-  xhr.send();
+    <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(jsonResponse.spoiler_text)}} />
+
+    <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(jsonResponse.content)}} />
+
+    {(jsonResponse.media_attachments || []).map((img) => {
+      <img src={img.preview_url} />
+    })}
+  </>;
+
+  document.querySelector('.content__login').style.display = 'none';
+  document.querySelector('.content__results').style.display = 'block';
+  const root = ReactDOM.createRoot(document.querySelector('.results--target-toot'));
+  root.render(tootContent);
+
+  const toBlock = {};
+
+  await Promise.all([
+    fetchAccounts(toBlock, `${tootApiUrl}/reblogged_by`),
+    fetchAccounts(toBlock, `${tootApiUrl}/favourited_by`),
+    fetchAccounts(toBlock, `${canonicalTootApiUrl}/reblogged_by`),
+    fetchAccounts(toBlock, `${canonicalTootApiUrl}/favourited_by`)
+  ]);
+
+  global.toBlock = toBlock;
+
+  return true;
 };
 
-const getFavedBy = function getAllTootsThatFavoratedSuppliedToot(tootId) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/statuses/${tootId}/favourited_by`,
-    true);
-
-  xhr.onerror = showError;
-  xhr.onreadystatechange = () => {
-    if (
-      xhr.readyState === XMLHttpRequest.DONE
-      && xhr.status === 200
-    ) {
-      global.favoratedBy = [];
-      JSON.parse(xhr.responseText).forEach((account) => {
-        global.favoratedBy.push(account.id);
-      });
+const fetchAccounts = async function (toBlock, url) {
+    try {
+      const response = await fetch(url);
+      const jsonResponse = await response.json();
+      for (const account of jsonResponse) {
+        if (!toBlock[account.acct]) {
+          const localSearchUrl = `${window.localStorage.getItem('baseUrl')}/api/v2/search?type=accounts&limit=1&q=${account.acct}`;
+          const response = await fetch(localSearchUrl, {headers: {
+            'Authorization': `Bearer ${window.localStorage.getItem(`${config.appName}token`)}`
+          }});
+          const jsonResponse = await response.json();
+          toBlock[account.acct] = jsonResponse.accounts[0];
+        }
+      }
+    } catch (e) {
+      console.error(`failed to get accounts from ${url}: ${e}`);
     }
-  };
-  xhr.send();
-};
-
-const getBoostedBy = function getAllTootsThatBoostedSuppliedToot(tootId) {
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET',
-    `${window.localStorage.getItem('baseUrl')}/api/v1/statuses/${tootId}/reblogged_by`,
-    true);
-
-  xhr.onerror = showError;
-  xhr.onreadystatechange = () => {
-    if (
-      xhr.readyState === XMLHttpRequest.DONE
-      && xhr.status === 200
-    ) {
-      global.boostedBy = [];
-      JSON.parse(xhr.responseText).forEach((account) => {
-        global.boostedBy.push(account.id);
-      });
-    }
-  };
-  xhr.send();
 };
 
 const blockAll = function blockAllToots() {
-  if (global.favoratedBy === 'unset' || global.boostedBy === 'unset') {
-    alert("Please wait until lists are loaded");
+  if (global.toBlock === 'unset') {
+    alert("Please wait until lists are loaded. check browser console for errors");
     return;
   }
 
-  const accountsToBlock = new Set();
-
-  global.boostedBy.forEach(id => accountsToBlock.add(id));
-  global.favoratedBy.forEach(id => accountsToBlock.add(id));
-
-  displayLoading(accountsToBlock.size);
+  const accountsToBlock = Object.keys(global.toBlock).length;
+  displayLoading(accountsToBlock);
   let numberOfBlockedAccounts = 0;
 
-
-  accountsToBlock.forEach((account) => {
+  Object.values(global.toBlock).forEach((account) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST',
-      `${window.localStorage.getItem('baseUrl')}/api/v1/accounts/${account}/block`,
+      `${window.localStorage.getItem('baseUrl')}/api/v1/accounts/${account.id}/block`,
       true);
     const accessToken = `Bearer ${window.localStorage.getItem(`${config.appName}token`)}`;
     xhr.setRequestHeader('Authorization', accessToken);
@@ -248,8 +225,8 @@ const blockAll = function blockAllToots() {
         && xhr.status === 200
       ) {
         numberOfBlockedAccounts++;
-        if (numberOfBlockedAccounts === accountsToBlock.size) {
-          displayLoadingDone(accountsToBlock.size);
+        if (numberOfBlockedAccounts === accountsToBlock) {
+          displayLoadingDone(accountsToBlock);
         }
       }
     };
