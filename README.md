@@ -33,7 +33,7 @@ a report to the users' moderators about each use, which I hope will limit the
 amount people use this tool for non-harassing purposes.
 
 ## Privacy
-Mastodon De-Mob does send me any data.  No analytics, no tracking data, nothing.  The
+Mastodon De-Mob does not send me any data.  No analytics, no tracking data, nothing.  The
 only data it stores is saved to local storage in your web browser.  The only data it
 sends out is sent to your instance and is the minimum amount of data necessary to
 identify the users to block, block those users, and send the report.
